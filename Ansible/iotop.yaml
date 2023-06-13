@@ -1,0 +1,13 @@
+---
+- name: Run iotop in a new screen
+  hosts: 
+    - server1
+    - server2
+    - server3
+  gather_facts: false
+  vars:
+    screen_session_name: myiotop
+  tasks:
+    - name: Start iotop in a new screen session
+      shell: |
+        screen -dmS {{ screen_session_name }} bash -c 'iotop -ao > /path/to/logs/{{ ansible_date_time.date }}.log'
