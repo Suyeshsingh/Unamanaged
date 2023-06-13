@@ -8,6 +8,8 @@
   vars:
     screen_session_name: myiotop
     grafana_url: http://grafana.example.com
+    grafana_username: your_username
+    grafana_password: your_password
     raven_db_datasource: MyRavenDBDatasource
     recipient_email: recipient@example.com
     email_subject: Iotop Data from Grafana
@@ -18,9 +20,12 @@
 
       {{ iotop_data.stdout }}
 
-      Attached is a screenshot of the Grafana dashboard.
-
       Thank you.
+
+    smtp_host: smtp.example.com
+    smtp_port: 587
+    smtp_username: your_smtp_username
+    smtp_password: your_smtp_password
 
   pre_tasks:
     - name: Start iotop in a new screen session
@@ -33,25 +38,60 @@
       pause:
         seconds: 60
 
-    - name: Capture screenshot of Grafana dashboard
-      shell: "cutycapt --url={{ grafana_url }}/d/{{ dashboard_id }}/dashboard-solo/db/{{ raven_db_datasource }} --out=/path/to/screenshot.png"
-      register: screenshot_output
-      changed_when: screenshot_output.stdout is not None
+    - name: Scrape Grafana data from RavenDB datasource
+      uri:
+        url: "{{ grafana_url }}/login"
+        method: POST
+        headers:
+          Content-Type: application/x-www-form-urlencoded
+        body: |
+          user={{ grafana_username }}&password={{ grafana_password }}
+        validate_certs: no
+        status_code: 302
+        follow_redirects: false
+      register: login_response
+
+    - name: Get Grafana session cookie
+      set_fact:
+        grafana_cookie: "{{ login_response.headers.set_cookie.split(';')[0] }}"
+
+    - name: Scrape data from Grafana using authenticated session
+      uri:
+        url: "{{ grafana_url }}/api/datasources/proxy/{{ raven_db_datasource }}/query"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ grafana_cookie }}"
+        body: |
+          {
+            "range": {
+              "from": "{{ ansible_date_time.iso8601 }}",
+              "to": "{{ ansible_date_time.iso8601 }}"
+            },
+            "targets": [
+              {
+                "type": "table",
+                "query": "SELECT * FROM measurement WHERE measurement = 'iotop'"
+              }
+            ]
+          }
+        validate_certs: no
+      register: grafana_data
 
   post_tasks:
     - name: Stop iotop screen session
       command: screen -S {{ screen_session_name }} -X quit
       when: iotop_output.changed
 
-    - name: Send email with iotop data and screenshot
+    - name: Send email with iotop data
       mail:
-        host: localhost
-        port: 25
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port }}"
+        username: "{{ smtp_username }}"
+        password: "{{ smtp_password }}"
         from: sender@example.com
         to: "{{ recipient_email }}"
         subject: "{{ email_subject }}"
         body: "{{ email_body }}"
-        attach:
-          - /path/to/screenshot.png
-      when: screenshot_output.changed
+      when: grafana_data.status == 200
       no_log: true
