@@ -1,0 +1,26 @@
+---
+- name: Run iotop and write log
+  hosts: server1, server2, server3
+  gather_facts: false
+  tasks:
+    - name: Start iotop in a new screen session
+      become: true
+      become_method: su
+      become_user: root
+      command: screen -dmS iotop_session bash -c 'iotop -ao > /mnt/suyesh/server_{{ inventory_hostname }}.log'
+      register: screen_output
+      changed_when: false
+
+    - name: Pause execution for some time
+      pause:
+        seconds: 60
+      become: true
+      become_method: su
+      become_user: root
+
+    - name: Stop iotop screen session
+      become: true
+      become_method: su
+      become_user: root
+      command: screen -S iotop_session -X quit
+      changed_when: false
