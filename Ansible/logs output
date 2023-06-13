@@ -5,7 +5,9 @@
   tasks:
     - name: Start iotop in a new screen session
       become: true
-      command: screen -dmS iotop_session bash -c 'iotop -ao > /mnt/suyesh/logs/server_{{ inventory_hostname }}.log'
+      become_method: sudo
+      become_user: root
+      command: screen -dmS iotop_session bash -c 'iotop -ao > /path/to/logs/server_{{ inventory_hostname }}.log'
       register: screen_output
       changed_when: false
 
@@ -13,8 +15,10 @@
       pause:
         seconds: 60
       become: true
+      become_method: sudo
 
     - name: Stop iotop screen session
       become: true
+      become_method: sudo
       command: screen -S iotop_session -X quit
       changed_when: false
