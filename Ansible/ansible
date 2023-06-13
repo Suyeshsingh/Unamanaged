@@ -16,21 +16,28 @@
 
       Thank you.
 
-  pre_tasks:
+  tasks:
+    - name: Check if screen session exists
+      shell: screen -ls | grep -q "{{ screen_session_name }}"
+      register: screen_session_check
+      changed_when: false
+
     - name: Start iotop in a new screen session
       shell: |
         screen -dmS {{ screen_session_name }} bash -c 'iotop -ao > /path/to/logs/server_{{ inventory_hostname }}.logs'
       register: iotop_output
-      changed_when: iotop_output.stdout is not None
+      changed_when: iotop_output.stdout is defined
+      when: screen_session_check.rc != 0
 
     - name: Pause execution for some time to collect data
       pause:
         seconds: 60
+      when: screen_session_check.rc != 0
 
-  post_tasks:
     - name: Stop iotop screen session
       command: screen -S {{ screen_session_name }} -X quit
-      when: iotop_output.changed
+      ignore_errors: true
+      when: screen_session_check.rc != 0
 
     - name: Send email with iotop data
       mail:
@@ -45,3 +52,4 @@
         attach:
           - /path/to/logs/server_{{ inventory_hostname }}.logs
       no_log: true
+      ignore_errors: true
