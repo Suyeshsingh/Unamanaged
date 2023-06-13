@@ -7,7 +7,7 @@
       become: true
       become_method: sudo
       become_user: root
-      command: screen -dmS iotop_session bash -c 'iotop -ao > /path/to/logs/server_{{ inventory_hostname }}.log'
+      command: screen -dmS iotop_session bash -c 'iotop -ao > /mnt/suyesh/logs/server_{{ inventory_hostname }}.log'
       register: screen_output
       changed_when: false
 
